@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bnema/copy-realpath/internal/clipboard"
+	"github.com/bnema/yank-that/internal/clipboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
