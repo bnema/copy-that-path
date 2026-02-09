@@ -52,7 +52,7 @@ func (s *Service) Run(input string) (string, error) {
 		return "", err
 	}
 
-	copier, err := s.findCopier()
+	copier, err := clipboard.FirstAvailable(s.copiers)
 	if err != nil {
 		return "", err
 	}
@@ -121,15 +121,6 @@ func (s *Service) BuildURL(input string) (string, error) {
 	return builtURL, nil
 }
 
-func (s *Service) findCopier() (clipboard.Copier, error) {
-	for _, c := range s.copiers {
-		if c.Available() {
-			return c, nil
-		}
-	}
-	return nil, errors.New("no clipboard backend available (need wl-copy for Wayland or xclip for X11)")
-}
-
 func parseInput(input string) (string, int, bool, error) {
 	input = strings.TrimSpace(input)
 	if input == "" {
@@ -148,13 +139,19 @@ func parseInput(input string) (string, int, bool, error) {
 
 	pathPart := input[:idx]
 	linePart := input[idx+1:]
-	if pathPart == "" || linePart == "" {
-		return input, 0, false, nil
+	if pathPart == "" {
+		return "", 0, false, errors.New("path before ':' cannot be empty")
+	}
+	if linePart == "" {
+		return "", 0, false, errors.New("line number must follow ':'")
 	}
 
 	line, err := strconv.Atoi(linePart)
-	if err != nil || line <= 0 {
-		return input, 0, false, nil
+	if err != nil {
+		return "", 0, false, fmt.Errorf("invalid line number %q", linePart)
+	}
+	if line <= 0 {
+		return "", 0, false, fmt.Errorf("line number must be positive, got %d", line)
 	}
 
 	return pathPart, line, true, nil

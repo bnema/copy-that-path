@@ -1,7 +1,6 @@
 package content
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -62,7 +61,7 @@ func (a *App) Run(input string) (string, error) {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
-	copier, err := a.findCopier()
+	copier, err := clipboard.FirstAvailable(a.copiers)
 	if err != nil {
 		return "", err
 	}
@@ -72,14 +71,4 @@ func (a *App) Run(input string) (string, error) {
 	}
 
 	return absPath, nil
-}
-
-// findCopier returns the first available clipboard backend.
-func (a *App) findCopier() (clipboard.Copier, error) {
-	for _, c := range a.copiers {
-		if c.Available() {
-			return c, nil
-		}
-	}
-	return nil, errors.New("no clipboard backend available (need wl-copy for Wayland or xclip for X11)")
 }
