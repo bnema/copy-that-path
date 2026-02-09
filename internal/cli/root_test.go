@@ -43,6 +43,7 @@ func TestRootCmd_UsageListsPathContentGithub(t *testing.T) {
 	assert.Contains(t, out.String(), "path")
 	assert.Contains(t, out.String(), "content")
 	assert.Contains(t, out.String(), "github")
+	assert.Contains(t, out.String(), "install-aliases")
 }
 
 type stubRunner struct {

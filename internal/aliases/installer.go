@@ -91,8 +91,13 @@ func appendSnippet(path, snippet string) (bool, error) {
 		return false, err
 	}
 
-	if strings.Contains(content, startMarker) && strings.Contains(content, endMarker) {
+	hasStart := strings.Contains(content, startMarker)
+	hasEnd := strings.Contains(content, endMarker)
+	if hasStart && hasEnd {
 		return false, nil
+	}
+	if hasStart || hasEnd {
+		return false, fmt.Errorf("corrupt alias block in %s: found only one marker; remove the partial block and re-run", path)
 	}
 
 	newContent := content
@@ -101,7 +106,12 @@ func appendSnippet(path, snippet string) (bool, error) {
 	}
 	newContent += "\n" + snippet
 
-	if err := os.WriteFile(path, []byte(newContent), 0o644); err != nil {
+	perm := os.FileMode(0o644)
+	if info, statErr := os.Stat(path); statErr == nil {
+		perm = info.Mode().Perm()
+	}
+
+	if err := os.WriteFile(path, []byte(newContent), perm); err != nil {
 		return false, err
 	}
 

@@ -141,6 +141,11 @@ func parseInput(input string) (string, int, bool, error) {
 		return input, 0, false, nil
 	}
 
+	// Skip Windows drive-letter colons (e.g. C:\file.txt)
+	if idx == 1 && len(input) > 2 && (input[0] >= 'A' && input[0] <= 'Z' || input[0] >= 'a' && input[0] <= 'z') && (input[2] == '\\' || input[2] == '/') {
+		return input, 0, false, nil
+	}
+
 	pathPart := input[:idx]
 	linePart := input[idx+1:]
 	if pathPart == "" || linePart == "" {

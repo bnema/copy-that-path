@@ -39,11 +39,22 @@ func NewDefault() *App {
 	)
 }
 
+// maxFileSize is the largest file we will read into memory (10 MB).
+const maxFileSize = 10 * 1024 * 1024
+
 // Run resolves the file path, reads file content, and copies it to clipboard.
 func (a *App) Run(input string) (string, error) {
 	absPath, err := a.resolver.Resolve(input)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve path: %w", err)
+	}
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat file: %w", err)
+	}
+	if info.Size() > maxFileSize {
+		return "", fmt.Errorf("file too large (%d bytes, max %d)", info.Size(), maxFileSize)
 	}
 
 	content, err := os.ReadFile(absPath)
