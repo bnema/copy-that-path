@@ -2,7 +2,9 @@ package content
 
 import (
 	"fmt"
+	"net/http"
 	"os"
+	"strings"
 
 	"github.com/bnema/yank-that/internal/clipboard"
 	"github.com/bnema/yank-that/internal/path"
@@ -61,6 +63,17 @@ func (a *App) Run(input string) (string, error) {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
+	if contentType, ok := imageContentType(content); ok {
+		binaryCopier, err := a.firstAvailableBinaryCopier()
+		if err != nil {
+			return "", err
+		}
+		if err := binaryCopier.CopyBytes(content, contentType); err != nil {
+			return "", fmt.Errorf("failed to copy to clipboard: %w", err)
+		}
+		return absPath, nil
+	}
+
 	copier, err := clipboard.FirstAvailable(a.copiers)
 	if err != nil {
 		return "", err
@@ -71,4 +84,32 @@ func (a *App) Run(input string) (string, error) {
 	}
 
 	return absPath, nil
+}
+
+func (a *App) firstAvailableBinaryCopier() (clipboard.BinaryCopier, error) {
+	for _, copier := range a.copiers {
+		if !copier.Available() {
+			continue
+		}
+		binaryCopier, ok := copier.(clipboard.BinaryCopier)
+		if !ok {
+			continue
+		}
+		return binaryCopier, nil
+	}
+
+	copier, err := clipboard.FirstAvailable(a.copiers)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("clipboard backend %q cannot copy binary data", copier.Name())
+}
+
+func imageContentType(content []byte) (string, bool) {
+	contentType := http.DetectContentType(content)
+	if strings.HasPrefix(contentType, "image/") {
+		return contentType, true
+	}
+
+	return "", false
 }

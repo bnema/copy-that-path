@@ -1,6 +1,7 @@
 package clipboard
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,6 +20,18 @@ func NewWayland() *Wayland {
 func (w *Wayland) Copy(text string) error {
 	cmd := exec.Command("wl-copy", "--trim-newline")
 	cmd.Stdin = strings.NewReader(text)
+	cmd.Stderr = nil
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("wl-copy failed: %w", err)
+	}
+	return nil
+}
+
+// CopyBytes copies typed binary data to clipboard using wl-copy.
+func (w *Wayland) CopyBytes(data []byte, contentType string) error {
+	cmd := exec.Command("wl-copy", "--type", contentType)
+	cmd.Stdin = bytes.NewReader(data)
 	cmd.Stderr = nil
 
 	if err := cmd.Run(); err != nil {

@@ -20,6 +20,33 @@ func (m *mockResolver) Resolve(input string) (string, error) {
 	return m.path, m.err
 }
 
+type recordingCopier struct {
+	available   bool
+	copyText    string
+	copyBytes   []byte
+	contentType string
+	copyErr     error
+}
+
+func (r *recordingCopier) Copy(text string) error {
+	r.copyText = text
+	return r.copyErr
+}
+
+func (r *recordingCopier) CopyBytes(data []byte, contentType string) error {
+	r.copyBytes = append([]byte(nil), data...)
+	r.contentType = contentType
+	return r.copyErr
+}
+
+func (r *recordingCopier) Available() bool {
+	return r.available
+}
+
+func (r *recordingCopier) Name() string {
+	return "recording"
+}
+
 func TestApp_Run(t *testing.T) {
 	t.Run("copies file content to clipboard", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -36,6 +63,83 @@ func TestApp_Run(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, filePath, result)
+	})
+
+	t.Run("copies image content as typed binary data", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "pixel.png")
+		png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+		require.NoError(t, os.WriteFile(filePath, png, 0o600))
+
+		resolver := &mockResolver{path: filePath}
+		copier := &recordingCopier{available: true}
+
+		app := New(resolver, []clipboard.Copier{copier})
+		result, err := app.Run("pixel.png")
+
+		require.NoError(t, err)
+		assert.Equal(t, filePath, result)
+		assert.Empty(t, copier.copyText)
+		assert.Equal(t, png, copier.copyBytes)
+		assert.Equal(t, "image/png", copier.contentType)
+	})
+
+	t.Run("returns error for image content when no binary clipboard backend is available", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "pixel.png")
+		png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+		require.NoError(t, os.WriteFile(filePath, png, 0o600))
+
+		resolver := &mockResolver{path: filePath}
+		textOnlyCopier := clipboard.NewMockCopier(t)
+		textOnlyCopier.EXPECT().Available().Return(true)
+		textOnlyCopier.EXPECT().Name().Return("text-only")
+
+		app := New(resolver, []clipboard.Copier{textOnlyCopier})
+		result, err := app.Run("pixel.png")
+
+		require.Error(t, err)
+		assert.Empty(t, result)
+		assert.Contains(t, err.Error(), "cannot copy binary data")
+	})
+
+	t.Run("copies image content with first available binary clipboard backend", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "pixel.png")
+		png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+		require.NoError(t, os.WriteFile(filePath, png, 0o600))
+
+		resolver := &mockResolver{path: filePath}
+		textOnlyCopier := clipboard.NewMockCopier(t)
+		textOnlyCopier.EXPECT().Available().Return(true)
+		binaryCopier := &recordingCopier{available: true}
+
+		app := New(resolver, []clipboard.Copier{textOnlyCopier, binaryCopier})
+		result, err := app.Run("pixel.png")
+
+		require.NoError(t, err)
+		assert.Equal(t, filePath, result)
+		assert.Empty(t, binaryCopier.copyText)
+		assert.Equal(t, png, binaryCopier.copyBytes)
+		assert.Equal(t, "image/png", binaryCopier.contentType)
+	})
+
+	t.Run("copies text content as text even with image extension", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "notes.png")
+		require.NoError(t, os.WriteFile(filePath, []byte("hello world\n"), 0o644))
+
+		resolver := &mockResolver{path: filePath}
+		copier := &recordingCopier{available: true}
+
+		app := New(resolver, []clipboard.Copier{copier})
+		result, err := app.Run("notes.png")
+
+		require.NoError(t, err)
+		assert.Equal(t, filePath, result)
+		assert.Equal(t, "hello world\n", copier.copyText)
+		assert.Empty(t, copier.copyBytes)
+		assert.Empty(t, copier.contentType)
 	})
 
 	t.Run("returns error when resolver fails", func(t *testing.T) {
