@@ -14,6 +14,11 @@ type Copier interface {
 	Name() string
 }
 
+// BinaryCopier is implemented by clipboard backends that can copy typed binary data.
+type BinaryCopier interface {
+	CopyBytes(data []byte, contentType string) error
+}
+
 // FirstAvailable returns the first available Copier from the list,
 // or an error if none are available.
 func FirstAvailable(copiers []Copier) (Copier, error) {

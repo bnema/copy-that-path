@@ -2,7 +2,9 @@ package content
 
 import (
 	"fmt"
+	"net/http"
 	"os"
+	"strings"
 
 	"github.com/bnema/yank-that/internal/clipboard"
 	"github.com/bnema/yank-that/internal/path"
@@ -66,9 +68,29 @@ func (a *App) Run(input string) (string, error) {
 		return "", err
 	}
 
+	if contentType, ok := imageContentType(content); ok {
+		binaryCopier, ok := copier.(clipboard.BinaryCopier)
+		if !ok {
+			return "", fmt.Errorf("clipboard backend %q cannot copy binary data", copier.Name())
+		}
+		if err := binaryCopier.CopyBytes(content, contentType); err != nil {
+			return "", fmt.Errorf("failed to copy to clipboard: %w", err)
+		}
+		return absPath, nil
+	}
+
 	if err := copier.Copy(string(content)); err != nil {
 		return "", fmt.Errorf("failed to copy to clipboard: %w", err)
 	}
 
 	return absPath, nil
+}
+
+func imageContentType(content []byte) (string, bool) {
+	contentType := http.DetectContentType(content)
+	if strings.HasPrefix(contentType, "image/") {
+		return contentType, true
+	}
+
+	return "", false
 }
