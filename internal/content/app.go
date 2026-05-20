@@ -63,15 +63,10 @@ func (a *App) Run(input string) (string, error) {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
-	copier, err := clipboard.FirstAvailable(a.copiers)
-	if err != nil {
-		return "", err
-	}
-
 	if contentType, ok := imageContentType(content); ok {
-		binaryCopier, ok := copier.(clipboard.BinaryCopier)
-		if !ok {
-			return "", fmt.Errorf("clipboard backend %q cannot copy binary data", copier.Name())
+		binaryCopier, err := a.firstAvailableBinaryCopier()
+		if err != nil {
+			return "", err
 		}
 		if err := binaryCopier.CopyBytes(content, contentType); err != nil {
 			return "", fmt.Errorf("failed to copy to clipboard: %w", err)
@@ -79,11 +74,35 @@ func (a *App) Run(input string) (string, error) {
 		return absPath, nil
 	}
 
+	copier, err := clipboard.FirstAvailable(a.copiers)
+	if err != nil {
+		return "", err
+	}
+
 	if err := copier.Copy(string(content)); err != nil {
 		return "", fmt.Errorf("failed to copy to clipboard: %w", err)
 	}
 
 	return absPath, nil
+}
+
+func (a *App) firstAvailableBinaryCopier() (clipboard.BinaryCopier, error) {
+	for _, copier := range a.copiers {
+		if !copier.Available() {
+			continue
+		}
+		binaryCopier, ok := copier.(clipboard.BinaryCopier)
+		if !ok {
+			continue
+		}
+		return binaryCopier, nil
+	}
+
+	copier, err := clipboard.FirstAvailable(a.copiers)
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("clipboard backend %q cannot copy binary data", copier.Name())
 }
 
 func imageContentType(content []byte) (string, bool) {

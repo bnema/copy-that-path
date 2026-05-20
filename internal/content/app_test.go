@@ -84,6 +84,27 @@ func TestApp_Run(t *testing.T) {
 		assert.Equal(t, "image/png", copier.contentType)
 	})
 
+	t.Run("copies image content with first available binary clipboard backend", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "pixel.png")
+		png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+		require.NoError(t, os.WriteFile(filePath, png, 0o644))
+
+		resolver := &mockResolver{path: filePath}
+		textOnlyCopier := clipboard.NewMockCopier(t)
+		textOnlyCopier.EXPECT().Available().Return(true)
+		binaryCopier := &recordingCopier{available: true}
+
+		app := New(resolver, []clipboard.Copier{textOnlyCopier, binaryCopier})
+		result, err := app.Run("pixel.png")
+
+		require.NoError(t, err)
+		assert.Equal(t, filePath, result)
+		assert.Empty(t, binaryCopier.copyText)
+		assert.Equal(t, png, binaryCopier.copyBytes)
+		assert.Equal(t, "image/png", binaryCopier.contentType)
+	})
+
 	t.Run("copies text content as text even with image extension", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		filePath := filepath.Join(tmpDir, "notes.png")
